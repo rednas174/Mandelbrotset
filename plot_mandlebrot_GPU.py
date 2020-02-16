@@ -70,39 +70,37 @@ class MandleBrot():
         if self.dark_mode_type > 1: self.rendered_pic[self.np.where(self.rendered_pic == 255)] = 0
     
     
-    def __iterate(self, num, iterations, bin_iteration, cup):
+    def __iterate(self, num, iterations, bin_iteration, math_funcs):
             value = num
             for i in range(iterations):
                 value = value ** self.power + num
-                #print("iter", bin_iteration.shape)
-                #print("val", value.shape)
-                bin_iteration += cup.abs(value) < 2
+                bin_iteration += math_funcs.abs(value) < 2
             return value
     
     
-    def __render(self, cup):
+    def __render(self, math_funcs):
             
-        bin_map       = cup.empty((self.resolution, self.resolution), dtype = cup.uint8)
-        bin_iteration = cup.zeros((self.resolution, self.resolution), dtype = cup.uint32)
+        bin_map       = math_funcs.empty((self.resolution, self.resolution), dtype = math_funcs.uint8)
+        bin_iteration = math_funcs.zeros((self.resolution, self.resolution), dtype = math_funcs.uint32)
         
         print("coordinates are x=" + str(self.offset_x + self.zoomed_offset_x) + ", y=" + str(self.offset_y + self.zoomed_offset_y) + ", zoom=" + str(1/self.zoom))
         
-        mesh = cup.meshgrid(cup.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, \
+        mesh = math_funcs.meshgrid(math_funcs.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, \
                                     self.map_range[1] * self.zoom + self.offset_x + self.zoomed_offset_x, bin_map.shape[1]), \
-                   cup.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y,\
+                   math_funcs.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y,\
                                     self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_map.shape[0]))
-        mesh = mesh[0].astype(cup.complex128) + 1j * mesh[1].astype(cup.complex128)
+        mesh = mesh[0].astype(math_funcs.complex128) + 1j * mesh[1].astype(math_funcs.complex128)
         print(mesh.shape)
         
         t = self.time.time()
-        bin_map = self.__iterate(mesh, self.iterations, bin_iteration, cup)
+        bin_map = self.__iterate(mesh, self.iterations, bin_iteration, math_funcs)
         if self.gpu_enabled: 
-            if cup == self.cp:
-                cup.cuda.Device(0).synchronize()
+            if math_funcs == self.cp:
+                math_funcs.cuda.Device(0).synchronize()
         print("Rendered in " + str(round(self.time.time()-t, 3)) + " seconds")
         
         if self.gpu_enabled: 
-            if cup == self.cp:
+            if math_funcs == self.cp:
                 bin_iteration = bin_iteration.get()
         
         end_result = bin_iteration.max() - bin_iteration
@@ -111,28 +109,36 @@ class MandleBrot():
         
         return end_result
     
-    def __render_optimized(self, cup):
+    def __render_optimized(self, math_funcs):
+        """
+
+        Parameters
+        ----------
+        math_funcs : This is the value that indicates if cupy or numpy is used.
+              cupy  - use the GPU
+              numpy - use the CPU (VERY SLOW!!!)
+
+        Returns
+        -------
+        end_result_2 : rendered mandlebrot
+        """
         
-        #bin_map       = cup.empty((self.resolution//2, self.resolution), dtype = cup.uint8)
-        bin_iteration = cup.zeros((self.resolution//2, self.resolution), dtype = cup.uint16)
+        bin_iteration = math_funcs.zeros((self.resolution//2, self.resolution), dtype = math_funcs.uint16)
         print("coordinates are x=" + str(self.offset_x + self.zoomed_offset_x) + ", y=" + str(self.offset_y + self.zoomed_offset_y) + ", zoom=" + str(1/self.zoom))
         
-        mesh = cup.meshgrid( \
-        cup.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, self.map_range[1] * self.zoom + self.offset_x + self.zoomed_offset_x, bin_iteration.shape[1]), \
-        cup.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y, self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_iteration.shape[0]))
-        # self.yspace = cup.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y, self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_iteration.shape[0])
-        mesh = mesh[0].astype(cup.complex64) + 1j * mesh[1].astype(cup.complex64)
-        # print(mesh.shape)
-        # self.mesh = mesh
+        mesh = math_funcs.meshgrid( \
+        math_funcs.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, self.map_range[1] * self.zoom + self.offset_x + self.zoomed_offset_x, bin_iteration.shape[1]), \
+        math_funcs.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y, self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_iteration.shape[0]))
+        mesh = mesh[0].astype(math_funcs.complex64) + 1j * mesh[1].astype(math_funcs.complex64)
         t = self.time.time()
-        self.__iterate(mesh, self.iterations, bin_iteration, cup)
+        self.__iterate(mesh, self.iterations, bin_iteration, math_funcs)
         if self.gpu_enabled: 
-            if cup == self.cp:
-                cup.cuda.Device(0).synchronize()
+            if math_funcs == self.cp:
+                math_funcs.cuda.Device(0).synchronize()
         print("Rendered in " + str(round(self.time.time()-t, 3)) + " seconds")
         
         if self.gpu_enabled: 
-            if cup == self.cp:
+            if math_funcs == self.cp:
                 bin_iteration = bin_iteration.get()
         
         end_result = bin_iteration.max() - bin_iteration
@@ -142,29 +148,26 @@ class MandleBrot():
         end_result_2[:self.resolution//2, :] = end_result[::-1]
         end_result_2[self.resolution//2:, :] = end_result[1:]
         
-        
         return end_result_2
     
-    def iterate2(self, num, iterations, bin_iteration, cup):
+    def iterate2(self, num, iterations, bin_iteration, math_funcs):
         value = num
         for i in range(iterations):
             value = value ** self.power + num
-            #print("iter", bin_iteration.shape)
-            #print("val", value.shape)
-            bin_iteration += cup.abs(value) < 2
+            bin_iteration += math_funcs.abs(value) < 2
         return bin_iteration
     
     def renderHUGE(self, size):
-        print("initting empty array")
+        print("initting empty array", flush=True)
         self.map_range = (-2,2,-2,2)
         bin_iteration = self.np.zeros((size, size), dtype = self.np.uint8)
-        print("Creating meshgrid")
+        print("Creating meshgrid", flush=True)
         mesh = self.np.tile(self.np.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, self.map_range[1] * self.zoom + self.offset_x + self.zoomed_offset_x, bin_iteration.shape[1], dtype=self.np.complex64), (size, 1))
         meshY = self.np.tile(self.np.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y, self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_iteration.shape[0], dtype=self.np.float32).reshape(-1,1), (1, size))
-        print("Making the mesh complex")
+        print("Making the mesh complex", flush=True)
         mesh.imag = meshY
         
-        print("Flattening Mesh")
+        print("Flattening Mesh", flush=True)
         mesh = mesh.ravel()
         bin_iteration = bin_iteration.ravel()
         self.mesh = mesh
@@ -173,34 +176,34 @@ class MandleBrot():
         totalSize = size ** 2
         splits = self.np.ceil(totalSize/(splitSize)).astype(self.np.uint16)
         
-        print(str(splits) + " split(s) required")
+        print(str(splits) + " split(s) required", flush=True)
         t = self.time.time()
         for i in range(splits):
             bin_iteration[splitSize*i:splitSize*(i+1)] = self.iterate2(self.cp.asarray(mesh[splitSize*i:splitSize*(i+1)]), self.iterations, self.cp.asarray(bin_iteration[splitSize*i:splitSize*(i+1)]), self.cp).get()
             print("\rSplit " + str(i+1) + "/" + str(splits) +" done", end="", flush=True)
         print()
         
-        print("\nRendered in " + str(round(self.time.time()-t, 3)) + " seconds")
+        print("\nRendered in " + str(round(self.time.time()-t, 3)) + " seconds", flush=True)
 
         print(bin_iteration.max())
-        return (bin_iteration.astype(self.np.float32) / bin_iteration.max() * 255).astype(self.np.uint8).reshape(size,size)
+        return (bin_iteration / bin_iteration.real.max() * 255).astype(self.np.uint8).reshape(size,size)
     
 if __name__ == "__main__":
-    # import matplotlib.pyplot as pltsh
     
     import cv2
     m = MandleBrot()
-    m.resolution = 20000
+    m.resolution = 7500
     m.iterations = 200
-    a = m.renderHUGE(20000)
+    
+    a = m.renderHUGE(75000)
     cv2.imwrite("HUGE.png", a)
+    
     # for mode in ["GPU"]:
-    #     #for dm in range(3):
-    #     dm = 1
-    #     if 1:
-    #         m.dark_mode_type = dm
-    #         m.render(mode, show_output = True, Experimental = True)
-    #         m.save_last("dark_mode_" + mode + "_" + str(dm))
+    #     for dm in range(3):
+    #         if 1:
+    #             m.dark_mode_type = dm
+    #             m.render(mode, show_output = False, Experimental = False)
+    #             m.save_last("dark_mode_" + mode + "_" + str(dm))
             
             
             
