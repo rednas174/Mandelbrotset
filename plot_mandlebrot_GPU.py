@@ -158,16 +158,16 @@ class MandleBrot():
         return bin_iteration
     
     def renderHUGE(self, size):
-        print("initting empty array")
+        print("initting empty array", flush=True)
         self.map_range = (-2,2,-2,2)
         bin_iteration = self.np.zeros((size, size), dtype = self.np.uint8)
-        print("Creating meshgrid")
+        print("Creating meshgrid", flush=True)
         mesh = self.np.tile(self.np.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, self.map_range[1] * self.zoom + self.offset_x + self.zoomed_offset_x, bin_iteration.shape[1], dtype=self.np.complex64), (size, 1))
         meshY = self.np.tile(self.np.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y, self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_iteration.shape[0], dtype=self.np.float32).reshape(-1,1), (1, size))
-        print("Making the mesh complex")
+        print("Making the mesh complex", flush=True)
         mesh.imag = meshY
         
-        print("Flattening Mesh")
+        print("Flattening Mesh", flush=True)
         mesh = mesh.ravel()
         bin_iteration = bin_iteration.ravel()
         self.mesh = mesh
@@ -176,17 +176,17 @@ class MandleBrot():
         totalSize = size ** 2
         splits = self.np.ceil(totalSize/(splitSize)).astype(self.np.uint16)
         
-        print(str(splits) + " split(s) required")
+        print(str(splits) + " split(s) required", flush=True)
         t = self.time.time()
         for i in range(splits):
             bin_iteration[splitSize*i:splitSize*(i+1)] = self.iterate2(self.cp.asarray(mesh[splitSize*i:splitSize*(i+1)]), self.iterations, self.cp.asarray(bin_iteration[splitSize*i:splitSize*(i+1)]), self.cp).get()
             print("\rSplit " + str(i+1) + "/" + str(splits) +" done", end="", flush=True)
         print()
         
-        print("\nRendered in " + str(round(self.time.time()-t, 3)) + " seconds")
+        print("\nRendered in " + str(round(self.time.time()-t, 3)) + " seconds", flush=True)
 
         print(bin_iteration.max())
-        return (bin_iteration.astype(self.np.float32) / bin_iteration.max() * 255).astype(self.np.uint8).reshape(size,size)
+        return (bin_iteration / bin_iteration.real.max() * 255).astype(self.np.uint8).reshape(size,size)
     
 if __name__ == "__main__":
     
