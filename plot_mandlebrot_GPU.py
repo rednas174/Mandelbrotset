@@ -29,6 +29,8 @@ class MandleBrot():
     offset_x = -0.75
     offset_y = 0
     
+    glowIntensity = 1.5
+    
     zoomed_offset_y = 0 * zoom
     zoomed_offset_x = 0 * zoom
     
@@ -66,8 +68,8 @@ class MandleBrot():
                 self.rendered_pic = self.__render(self.np)
                     
         if show_output: self.plt.imshow(self.rendered_pic * 255, cmap = "gray")
-        if self.dark_mode_type > 0: self.rendered_pic = 255 - self.rendered_pic
-        if self.dark_mode_type > 1: self.rendered_pic[self.np.where(self.rendered_pic == 255)] = 0
+        if self.dark_mode_type == 0: self.rendered_pic = 255 - self.rendered_pic
+        if self.dark_mode_type == 2: self.rendered_pic[self.np.where(self.rendered_pic == 255)] = 0
     
     
     def __iterate(self, num, iterations, bin_iteration, math_funcs):
@@ -103,11 +105,14 @@ class MandleBrot():
             if math_funcs == self.cp:
                 bin_iteration = bin_iteration.get()
         
-        end_result = bin_iteration.max() - bin_iteration
-        end_result = end_result / self.iterations
-        end_result = (end_result * 255).astype(self.np.uint8)
+        
+        
+        bin_iteration = self.np.log2(bin_iteration+1)**self.glowIntensity
+        
+        end_result = ((bin_iteration / bin_iteration.max()) * 255).astype(self.np.uint8)
         
         return end_result
+
     
     def __render_optimized(self, math_funcs):
         """
@@ -160,7 +165,7 @@ class MandleBrot():
     def renderHUGE(self, size):
         print("initting empty array", flush=True)
         self.map_range = (-2,2,-2,2)
-        bin_iteration = self.np.zeros((size, size), dtype = self.np.uint8)
+        bin_iteration = self.np.zeros((size, size), dtype = self.np.uint32)
         print("Creating meshgrid", flush=True)
         mesh = self.np.tile(self.np.linspace(self.map_range[0] * self.zoom + self.offset_x + self.zoomed_offset_x, self.map_range[1] * self.zoom + self.offset_x + self.zoomed_offset_x, bin_iteration.shape[1], dtype=self.np.complex64), (size, 1))
         meshY = self.np.tile(self.np.linspace(self.map_range[2] * self.zoom - self.offset_y - self.zoomed_offset_y, self.map_range[3] * self.zoom - self.offset_y - self.zoomed_offset_y, bin_iteration.shape[0], dtype=self.np.float32).reshape(-1,1), (1, size))
@@ -186,16 +191,28 @@ class MandleBrot():
         print("\nRendered in " + str(round(self.time.time()-t, 3)) + " seconds", flush=True)
 
         print(bin_iteration.max())
-        return (bin_iteration / bin_iteration.real.max() * 255).astype(self.np.uint8).reshape(size,size)
+        print("Deleting meshgrids")
+        del(mesh)
+        del(meshY)
+        
+        print("optimizing output")
+        bin_iteration = self.np.log2(bin_iteration+1)**self.glowIntensity
+        
+        end_result = ((bin_iteration / bin_iteration.max()) * 255).astype(self.np.uint8)
+        
+        return end_result
+        # bin_iteration = self.np.sqrt(self.np.sqrt(bin_iteration))
+        # return (bin_iteration / bin_iteration.real.max() * 255).astype(self.np.uint8).reshape(size,size)
     
 if __name__ == "__main__":
     
     import cv2
-    m = MandleBrot()
-    m.resolution = 7500
-    m.iterations = 200
+    m = MandleBrot() 
+    m.resolution    = 2000
+    m.iterations    = 1000
+    m.glowIntensity = 1.5
     
-    a = m.renderHUGE(75000)
+    a = m.renderHUGE(70000)
     cv2.imwrite("HUGE.png", a)
     
     # for mode in ["GPU"]:
